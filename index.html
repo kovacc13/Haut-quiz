@@ -1,0 +1,533 @@
+
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz: Anatomie und Physiologie der Haut</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Inter Font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        .quiz-container {
+            background-color: white;
+            border-radius: 0.75rem; /* Tailwind rounded-xl */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Tailwind shadow-lg */
+            transition: all 0.3s ease-in-out;
+        }
+        .option-btn {
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
+        }
+        .option-btn:hover:not(:disabled) {
+            background-color: #e5e7eb; /* Tailwind gray-200 */
+        }
+        .option-btn.correct {
+            background-color: #d1fae5; /* Tailwind green-100 */
+            border-color: #10b981; /* Tailwind green-500 */
+            color: #065f46; /* Tailwind green-800 */
+        }
+        .option-btn.incorrect {
+            background-color: #fee2e2; /* Tailwind red-100 */
+            border-color: #ef4444; /* Tailwind red-500 */
+            color: #991b1b; /* Tailwind red-800 */
+        }
+        .progress-bar-container {
+            background-color: #e5e7eb; /* Tailwind gray-200 */
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            overflow: hidden;
+        }
+        .progress-bar {
+            background-color: #3b82f6; /* Tailwind blue-500 */
+            height: 100%;
+            transition: width 0.3s ease-in-out;
+        }
+        .question-enter {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .question-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 300ms, transform 300ms;
+        }
+        .feedback-message {
+            min-height: 2.5rem; 
+        }
+        .gemini-explanation, .gemini-summary {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: #e0f2fe; /* Tailwind sky-100 */
+            border: 1px solid #7dd3fc; /* Tailwind sky-300 */
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #0c4a6e; /* Tailwind sky-800 */
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3b82f6; /* Blue */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div id="quiz-app" class="quiz-container w-full max-w-2xl">
+        <header class="bg-slate-700 text-white p-6 rounded-t-xl">
+            <h1 class="text-2xl font-bold text-center">Quiz: Anatomie & Physiologie der Haut</h1>
+        </header>
+
+        <main id="quiz-body" class="p-6 md:p-8">
+            <div id="question-view">
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm text-slate-600 mb-1">
+                        <span id="question-counter">Frage 1 von 10</span>
+                        <span id="current-score">Punkte: 0</span>
+                    </div>
+                    <div class="progress-bar-container h-2 w-full">
+                        <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div id="image-container" class="mb-4 flex justify-center">
+                     <img src="https://storage.googleapis.com/project-orca-publication-images/v_3_0_20240529_000000_allocated_1717365081814_320863087/uploaded_Haut%201.jpg_a60c52c0_3883_4f93_87b4_22de2a3d4e6f" alt="Aufbau der Hautschichten" class="max-w-xs w-full md:max-w-sm rounded-lg shadow-md" onerror="this.alt='Bild konnte nicht geladen werden'; this.src='https://placehold.co/400x250/e2e8f0/94a3b8?text=Haut-Grafik';" >
+                </div>
+
+                <h2 id="question-text" class="text-xl md:text-2xl font-semibold text-slate-800 mb-6 min-h-[3em]">Frage wird geladen...</h2>
+                <div id="answer-options" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                </div>
+                <div id="hint-container" class="mt-4 text-sm text-slate-500">
+                    <button id="hint-button" class="text-blue-600 hover:text-blue-800 font-medium">Hinweis anzeigen</button>
+                    <p id="hint-text" class="hidden mt-1 p-2 bg-blue-50 border border-blue-200 rounded-md"></p>
+                </div>
+                <div id="feedback-message" class="feedback-message mt-6 text-center font-medium">
+                </div>
+                <button id="explain-more-btn" class="mt-4 w-full bg-sky-500 hover:bg-sky-600 text-white font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out" style="display: none;">
+                    Erkläre mir mehr ✨
+                </button>
+                <div id="gemini-explanation-loader" class="loading-spinner" style="display: none;"></div>
+                <div id="gemini-explanation-output" class="gemini-explanation" style="display: none;"></div>
+
+                <button id="next-question-btn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-150 ease-in-out disabled:opacity-50" style="display: none;">
+                    Nächste Frage
+                </button>
+            </div>
+
+            <div id="results-view" style="display: none;" class="text-center">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4">Quiz Abgeschlossen!</h2>
+                <svg class="w-24 h-24 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p class="text-xl text-slate-700 mb-2">Dein Ergebnis:</p>
+                <p id="final-score" class="text-4xl font-bold text-blue-600 mb-6">0 / 0</p>
+                <p id="score-percentage" class="text-lg text-slate-600 mb-6"></p>
+                
+                <button id="generate-summary-btn" class="mb-4 w-full md:w-auto bg-teal-500 hover:bg-teal-600 text-white font-medium py-3 px-6 rounded-lg transition duration-150 ease-in-out">
+                    Generiere Lernzusammenfassung ✨
+                </button>
+                <div id="gemini-summary-loader" class="loading-spinner" style="display: none;"></div>
+                <div id="gemini-summary-output" class="gemini-summary" style="display: none;"></div>
+
+                <button id="restart-quiz-btn" class="mt-6 w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-150 ease-in-out">
+                    Quiz Neustarten
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const quizData = {
+          "questions": [
+            {
+              "question": "Welche Hautschicht ist in der Grafik ganz oben dargestellt und wird auch als Oberhaut bezeichnet?",
+              "hint": "Suchen Sie nach dem Begriff, der 'auf' oder 'über' der Dermis bedeutet.",
+              "topic": "Epidermis und Hautschichten",
+              "answerOptions": [
+                { "text": "Dermis", "rationale": "Die Dermis ist die mittlere Schicht, nicht die oberste.", "isCorrect": false },
+                { "text": "Subcutis", "rationale": "Die Subcutis liegt unter der Dermis und ist die tiefste der drei Hauptschichten.", "isCorrect": false },
+                { "text": "Epidermis", "rationale": "Die Epidermis ist die äußerste Schicht der Haut und dient als primäre Schutzbarriere.", "isCorrect": true },
+                { "text": "Hornhaut", "rationale": "Die Hornhaut (Stratum corneum) ist zwar die oberste Schicht, aber sie ist ein Teil der Epidermis, nicht der vollständige Name der Oberhaut.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Wie heißt die mittlere Hautschicht, die in der Grafik als 'Lederhaut' bezeichnet wird und Blutgefäße, Nerven sowie Haarfollikel enthält?",
+              "hint": "Diese Schicht gibt der Haut ihre Festigkeit und Elastizität, ähnlich wie Leder.",
+              "topic": "Dermis und ihre Bestandteile",
+              "answerOptions": [
+                { "text": "Epidermis", "rationale": "Die Epidermis ist die oberste Schicht und enthält keine Blutgefäße.", "isCorrect": false },
+                { "text": "Dermis", "rationale": "Die Dermis ist die dicke mittlere Schicht, die reich an Bindegewebe, Blutgefäßen und Nerven ist.", "isCorrect": true },
+                { "text": "Subcutis", "rationale": "Die Subcutis ist die unterste Schicht, die hauptsächlich aus Fettgewebe besteht.", "isCorrect": false },
+                { "text": "Stratum corneum", "rationale": "Das Stratum corneum ist die äußerste Schicht der Epidermis, nicht die Lederhaut.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Welche ist die unterste Schicht der Haut, die hauptsächlich aus Fettgewebe besteht und als 'Unterhaut' bekannt ist?",
+              "hint": "Denken Sie an die Schicht, die als Polster und Isolator dient.",
+              "topic": "Subcutis und ihre Funktion",
+              "answerOptions": [
+                { "text": "Epidermis", "rationale": "Die Epidermis ist die äußerste Schutzschicht.", "isCorrect": false },
+                { "text": "Dermis", "rationale": "Die Dermis liegt über dieser Schicht und enthält die meisten Hautanhangsgebilde.", "isCorrect": false },
+                { "text": "Subcutis", "rationale": "Die Subcutis (Unterhaut) verbindet die Haut mit den darunter liegenden Strukturen und besteht vorwiegend aus Fettgewebe.", "isCorrect": true },
+                { "text": "Stratum basale", "rationale": "Das Stratum basale ist die unterste Schicht der Epidermis, wo neue Hautzellen gebildet werden.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Die äußerste Schicht der Epidermis, die in der Grafik als 'Hornhaut' bezeichnet wird, besteht hauptsächlich aus:",
+              "hint": "Diese Zellen haben ihren Zellkern verloren und sind mit einem widerstandsfähigen Protein gefüllt.",
+              "topic": "Hornhaut (Stratum Corneum)",
+              "answerOptions": [
+                { "text": "Lebenden, sich teilenden Zellen", "rationale": "Lebende, sich teilende Zellen finden sich in der untersten Schicht der Epidermis (Stratum basale).", "isCorrect": false },
+                { "text": "Melanozyten", "rationale": "Melanozyten produzieren Pigmente und befinden sich tiefer in der Epidermis.", "isCorrect": false },
+                { "text": "Abgestorbenen, verhornten Zellen", "rationale": "Die Hornhaut besteht aus Keratinozyten, die abgestorben sind und eine schützende, wasserabweisende Schicht bilden.", "isCorrect": true },
+                { "text": "Kollagenfasern", "rationale": "Kollagenfasern sind ein Hauptbestandteil der Dermis und sorgen für Stabilität.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Welche der folgenden ist KEINE primäre Funktion der Haut?",
+              "hint": "Denken Sie darüber nach, welche Organsysteme für die Nahrungsverarbeitung zuständig sind.",
+              "topic": "Funktionen der Haut",
+              "answerOptions": [
+                { "text": "Schutz vor mechanischen Einwirkungen und Krankheitserregern", "rationale": "Die Haut bildet eine wesentliche Barriere gegen die Außenwelt.", "isCorrect": false },
+                { "text": "Produktion von Verdauungsenzymen", "rationale": "Die Produktion von Verdauungsenzymen ist eine Funktion des Magen-Darm-Trakts, nicht der Haut.", "isCorrect": true },
+                { "text": "Regulierung der Körpertemperatur", "rationale": "Durch Schwitzen und die Regulation der Durchblutung hilft die Haut, die Körpertemperatur konstant zu halten.", "isCorrect": false },
+                { "text": "Sinneswahrnehmung (Tastsinn, Schmerz, Temperatur)", "rationale": "Zahlreiche Nervenenden in der Haut ermöglichen die Wahrnehmung von Umweltreizen.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Welche Struktur ist für die Produktion von Melanin verantwortlich, dem Pigment, das die Hautfarbe bestimmt und vor UV-Strahlung schützt?",
+              "hint": "Der Name dieser Zelle leitet sich vom griechischen Wort 'melas' für 'schwarz' ab.",
+              "topic": "Melanozyten und Hautpigmentierung",
+              "answerOptions": [
+                { "text": "Talgdrüsen", "rationale": "Talgdrüsen produzieren Hautfett (Sebum), um die Haut geschmeidig zu halten.", "isCorrect": false },
+                { "text": "Schweißdrüsen", "rationale": "Schweißdrüsen sind für die Produktion von Schweiß zur Thermoregulation zuständig.", "isCorrect": false },
+                { "text": "Melanozyten", "rationale": "Diese spezialisierten Zellen in der Epidermis synthetisieren das Pigment Melanin und geben es an umliegende Hautzellen ab.", "isCorrect": true },
+                { "text": "Fettzellen", "rationale": "Fettzellen in der Subcutis dienen als Energiespeicher und Isolator.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Die Dermis (Lederhaut) verleiht der Haut hauptsächlich ihre Reißfestigkeit und Elastizität. Welche Bestandteile sind dafür maßgeblich verantwortlich?",
+              "hint": "Zwei Arten von Proteinfasern bilden ein Netzwerk, das sowohl für Stärke als auch für Dehnbarkeit sorgt.",
+              "topic": "Struktur und Eigenschaften der Dermis",
+              "answerOptions": [
+                { "text": "Fettzellen und Wasser", "rationale": "Fettzellen befinden sich hauptsächlich in der Subcutis, nicht in der Dermis.", "isCorrect": false },
+                { "text": "Keratinozyten und Melanozyten", "rationale": "Dies sind die Hauptzelltypen der Epidermis, nicht der Dermis.", "isCorrect": false },
+                { "text": "Kollagen- und Elastinfasern", "rationale": "Kollagen sorgt für die Reißfestigkeit, während Elastin der Haut ermöglicht, sich zu dehnen und in ihre Form zurückzukehren.", "isCorrect": true },
+                { "text": "Blutgefäße und Nervenenden", "rationale": "Obwohl diese in der Dermis vorhanden sind, sind sie für die Versorgung und Sinneswahrnehmung zuständig, nicht primär für die mechanischen Eigenschaften.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Welche Funktion hat das Fettgewebe in der Subcutis (Unterhaut) NICHT primär?",
+              "hint": "Welche sichtbare Struktur wächst aus der Haut heraus, hat ihren Ursprung aber nicht im Fettgewebe?",
+              "topic": "Funktionen der Subcutis",
+              "answerOptions": [
+                { "text": "Energiespeicher", "rationale": "Fett ist eine sehr effiziente Form der Energiespeicherung für den Körper.", "isCorrect": false },
+                { "text": "Wärmeisolierung", "rationale": "Die Fettschicht isoliert den Körper und hilft, Wärmeverluste zu reduzieren.", "isCorrect": false },
+                { "text": "Polsterung und Schutz für darunterliegende Organe", "rationale": "Das Fettgewebe wirkt als Stoßdämpfer gegen mechanische Einwirkungen.", "isCorrect": false },
+                { "text": "Produktion von Haaren", "rationale": "Haare werden in Haarfollikeln gebildet, die in der Dermis verankert sind.", "isCorrect": true }
+              ]
+            },
+            {
+              "question": "Schweißdrüsen, die in der Dermis beginnen und an die Hautoberfläche münden, spielen eine wichtige Rolle bei der:",
+              "hint": "Denken Sie an die Abkühlung, die Sie an einem heißen Tag spüren, wenn Sie schwitzen.",
+              "topic": "Schweißdrüsen und Thermoregulation",
+              "answerOptions": [
+                { "text": "Produktion von Hautfetten", "rationale": "Die Produktion von Hautfetten ist die Aufgabe der Talgdrüsen.", "isCorrect": false },
+                { "text": "Thermoregulation durch Verdunstungskälte", "rationale": "Wenn Schweiß auf der Haut verdunstet, entzieht er dem Körper Wärme und kühlt ihn so ab.", "isCorrect": true },
+                { "text": "Bildung der Hornschicht", "rationale": "Die Hornschicht wird von den Keratinozyten in der Epidermis gebildet.", "isCorrect": false },
+                { "text": "Speicherung von Vitamin D", "rationale": "Vitamin D wird in der Haut unter Einwirkung von UV-Licht synthetisiert, aber nicht in den Schweißdrüsen gespeichert.", "isCorrect": false }
+              ]
+            },
+            {
+              "question": "Welche Aussage über die Epidermis ist FALSCH?",
+              "hint": "Wie erhalten die lebenden Zellen der obersten Hautschicht ihre Nährstoffe?",
+              "topic": "Eigenschaften der Epidermis",
+              "answerOptions": [
+                { "text": "Sie ist die äußerste Hautschicht.", "rationale": "Die Epidermis bildet die direkte Schnittstelle zur Außenwelt.", "isCorrect": false },
+                { "text": "Sie enthält Blutgefäße zur Nährstoffversorgung.", "rationale": "Die Epidermis ist avaskulär; sie wird durch Diffusion von den Blutgefäßen in der darunterliegenden Dermis versorgt.", "isCorrect": true },
+                { "text": "Sie erneuert sich ständig durch Zellteilung in der untersten Schicht (Stratum basale).", "rationale": "Dieser Prozess sorgt für die kontinuierliche Regeneration der Hautoberfläche.", "isCorrect": false },
+                { "text": "Sie bildet eine Schutzbarriere gegen Umwelteinflüsse.", "rationale": "Dies ist eine der Hauptfunktionen der Epidermis.", "isCorrect": false }
+              ]
+            }
+          ]
+        };
+
+        // DOM Elements
+        const questionView = document.getElementById('question-view');
+        const resultsView = document.getElementById('results-view');
+        const questionTextElement = document.getElementById('question-text');
+        const answerOptionsElement = document.getElementById('answer-options');
+        const nextQuestionBtn = document.getElementById('next-question-btn');
+        const restartQuizBtn = document.getElementById('restart-quiz-btn');
+        const finalScoreElement = document.getElementById('final-score');
+        const scorePercentageElement = document.getElementById('score-percentage');
+        const questionCounterElement = document.getElementById('question-counter');
+        const currentScoreElement = document.getElementById('current-score');
+        const progressBarElement = document.getElementById('progress-bar');
+        const feedbackMessageElement = document.getElementById('feedback-message');
+        const hintButton = document.getElementById('hint-button');
+        const hintTextElement = document.getElementById('hint-text');
+        
+        const explainMoreBtn = document.getElementById('explain-more-btn');
+        const geminiExplanationLoader = document.getElementById('gemini-explanation-loader');
+        const geminiExplanationOutput = document.getElementById('gemini-explanation-output');
+
+        const generateSummaryBtn = document.getElementById('generate-summary-btn');
+        const geminiSummaryLoader = document.getElementById('gemini-summary-loader');
+        const geminiSummaryOutput = document.getElementById('gemini-summary-output');
+
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let questions = []; 
+        let currentQuestionTopic = ""; // To store the topic for Gemini API
+
+        // Gemini API Configuration
+        const GEMINI_API_KEY = ""; // Provided by Canvas environment
+        const GEMINI_API_URL_FLASH = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+        async function callGeminiAPI(promptText) {
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [{ text: promptText }]
+                }]
+            };
+            try {
+                const response = await fetch(GEMINI_API_URL_FLASH, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("Gemini API Error:", errorData);
+                    return `Fehler bei der Kommunikation mit der Gemini API: ${errorData.error?.message || response.statusText}`;
+                }
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    console.error("Unexpected Gemini API response structure:", result);
+                    return "Die Antwort der Gemini API hatte ein unerwartetes Format.";
+                }
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                return "Ein Fehler ist beim Abrufen der Erklärung aufgetreten. Bitte versuche es später erneut.";
+            }
+        }
+
+        async function getDeeperExplanation() {
+            explainMoreBtn.disabled = true;
+            geminiExplanationLoader.style.display = 'block';
+            geminiExplanationOutput.style.display = 'none';
+            geminiExplanationOutput.innerHTML = '';
+
+            const currentQuestionObject = questions[currentQuestionIndex];
+            const questionText = currentQuestionObject.question;
+            const correctAnswerObject = currentQuestionObject.answerOptions.find(opt => opt.isCorrect === true);
+            const correctAnswerText = correctAnswerObject ? correctAnswerObject.text : "der richtigen Antwort";
+            
+            const prompt = `Erkläre das folgende Konzept aus der Anatomie und Physiologie der menschlichen Haut genauer und leicht verständlich. Die Frage war: "${questionText}". Die richtige Antwort ist "${correctAnswerText}". Gehe besonders auf den Aspekt der richtigen Antwort ein und gib Kontext. Antworte auf Deutsch.`;
+            
+            const explanation = await callGeminiAPI(prompt);
+            geminiExplanationOutput.innerHTML = explanation.replace(/\n/g, '<br>'); // Preserve line breaks
+            geminiExplanationLoader.style.display = 'none';
+            geminiExplanationOutput.style.display = 'block';
+            // explainMoreBtn.disabled = false; // Keep it disabled or allow re-fetch? For now, keep disabled.
+        }
+
+        async function generateStudySummary() {
+            generateSummaryBtn.disabled = true;
+            geminiSummaryLoader.style.display = 'block';
+            geminiSummaryOutput.style.display = 'none';
+            geminiSummaryOutput.innerHTML = '';
+
+            const topicsCovered = Array.from(new Set(quizData.questions.map(q => q.topic || "Hautanatomie"))).join(', ');
+            const prompt = `Erstelle eine kurze, prägnante Lernzusammenfassung (ca. 150-200 Wörter) über die Hauptthemen dieses Quiz zur Anatomie und Physiologie der Haut. Die behandelten Themen umfassen: ${topicsCovered}. Die Zusammenfassung sollte die wichtigsten Punkte hervorheben und auf Deutsch sein.`;
+
+            const summary = await callGeminiAPI(prompt);
+            geminiSummaryOutput.innerHTML = summary.replace(/\n/g, '<br>');
+            geminiSummaryLoader.style.display = 'none';
+            geminiSummaryOutput.style.display = 'block';
+            // generateSummaryBtn.disabled = false; // Keep disabled or allow re-fetch?
+        }
+
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function startQuiz() {
+            questions = shuffleArray([...quizData.questions]).map(q => ({
+                ...q,
+                answerOptions: shuffleArray([...q.answerOptions])
+            }));
+
+            currentQuestionIndex = 0;
+            score = 0;
+            questionView.style.display = 'block';
+            resultsView.style.display = 'none';
+            
+            nextQuestionBtn.style.display = 'none';
+            nextQuestionBtn.textContent = 'Nächste Frage';
+            
+            explainMoreBtn.style.display = 'none';
+            geminiExplanationLoader.style.display = 'none';
+            geminiExplanationOutput.style.display = 'none';
+            geminiExplanationOutput.innerHTML = '';
+            explainMoreBtn.disabled = false;
+
+            geminiSummaryLoader.style.display = 'none';
+            geminiSummaryOutput.style.display = 'none';
+            geminiSummaryOutput.innerHTML = '';
+            generateSummaryBtn.disabled = false;
+
+
+            updateScoreDisplay();
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            questionTextElement.classList.remove('question-enter-active');
+            void questionTextElement.offsetWidth; 
+            questionTextElement.classList.add('question-enter', 'question-enter-active');
+
+            answerOptionsElement.innerHTML = '';
+            feedbackMessageElement.innerHTML = '';
+            feedbackMessageElement.className = 'feedback-message mt-6 text-center font-medium'; 
+            hintTextElement.classList.add('hidden');
+            hintButton.disabled = false;
+            hintButton.textContent = 'Hinweis anzeigen';
+
+            explainMoreBtn.style.display = 'none';
+            geminiExplanationLoader.style.display = 'none';
+            geminiExplanationOutput.style.display = 'none';
+            geminiExplanationOutput.innerHTML = '';
+            explainMoreBtn.disabled = false;
+
+
+            if (currentQuestionIndex < questions.length) {
+                const currentQuestion = questions[currentQuestionIndex];
+                currentQuestionTopic = currentQuestion.topic || "dieses Hautkonzepts"; // Fallback topic
+                questionTextElement.textContent = currentQuestion.question;
+                hintTextElement.textContent = currentQuestion.hint;
+
+                currentQuestion.answerOptions.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option.text;
+                    button.classList.add('option-btn', 'w-full', 'p-3', 'md:p-4', 'text-left', 'border-2', 'border-slate-300', 'rounded-lg', 'hover:bg-slate-100', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400');
+                    button.dataset.correct = option.isCorrect;
+                    button.dataset.rationale = option.rationale;
+                    button.addEventListener('click', selectAnswer);
+                    answerOptionsElement.appendChild(button);
+                });
+
+                questionCounterElement.textContent = `Frage ${currentQuestionIndex + 1} von ${questions.length}`;
+                updateProgressBar();
+                nextQuestionBtn.style.display = 'none'; 
+            } else {
+                showResults();
+            }
+        }
+
+        function selectAnswer(event) {
+            const selectedButton = event.target;
+            const isCorrect = selectedButton.dataset.correct === 'true';
+            const rationale = selectedButton.dataset.rationale;
+
+            hintButton.disabled = true;
+
+            Array.from(answerOptionsElement.children).forEach(button => {
+                button.disabled = true;
+                if (button.dataset.correct === 'true') {
+                    button.classList.remove('border-slate-300', 'hover:bg-slate-100');
+                    button.classList.add('correct');
+                }
+            });
+
+            if (isCorrect) {
+                score++;
+                selectedButton.classList.add('correct'); 
+                feedbackMessageElement.textContent = "Richtig! " + rationale;
+                feedbackMessageElement.classList.add('text-green-600');
+            } else {
+                selectedButton.classList.remove('border-slate-300', 'hover:bg-slate-100');
+                selectedButton.classList.add('incorrect');
+                feedbackMessageElement.textContent = "Leider falsch. " + rationale;
+                feedbackMessageElement.classList.add('text-red-600');
+            }
+
+            updateScoreDisplay();
+            nextQuestionBtn.style.display = 'block';
+            explainMoreBtn.style.display = 'block'; // Show explain more button
+            explainMoreBtn.disabled = false;
+            geminiExplanationOutput.style.display = 'none'; // Hide previous explanation if any
+            geminiExplanationOutput.innerHTML = '';
+
+
+            if (currentQuestionIndex === questions.length - 1) {
+                nextQuestionBtn.textContent = 'Ergebnisse anzeigen';
+            }
+        }
+
+        function updateScoreDisplay() {
+            currentScoreElement.textContent = `Punkte: ${score}`;
+        }
+
+        function updateProgressBar() {
+            const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+            progressBarElement.style.width = `${progress}%`;
+        }
+
+        function handleNextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < questions.length) {
+                displayQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            questionView.style.display = 'none';
+            resultsView.style.display = 'block';
+            const percentage = (score / questions.length) * 100;
+            finalScoreElement.textContent = `${score} / ${questions.length}`;
+            scorePercentageElement.textContent = `Das sind ${percentage.toFixed(1)}% richtig!`;
+            
+            // Reset and enable summary button
+            geminiSummaryLoader.style.display = 'none';
+            geminiSummaryOutput.style.display = 'none';
+            geminiSummaryOutput.innerHTML = '';
+            generateSummaryBtn.disabled = false;
+        }
+
+        hintButton.addEventListener('click', () => {
+            hintTextElement.classList.toggle('hidden');
+            hintButton.textContent = hintTextElement.classList.contains('hidden') ? 'Hinweis anzeigen' : 'Hinweis ausblenden';
+        });
+        
+        explainMoreBtn.addEventListener('click', getDeeperExplanation);
+        generateSummaryBtn.addEventListener('click', generateStudySummary);
+        nextQuestionBtn.addEventListener('click', handleNextQuestion);
+        restartQuizBtn.addEventListener('click', startQuiz);
+
+        startQuiz();
+    </script>
+
+</body>
+</html>
